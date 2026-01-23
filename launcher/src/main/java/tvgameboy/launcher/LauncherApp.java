@@ -6,12 +6,12 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Frame;
 import java.awt.GraphicsEnvironment;
+import java.awt.GridLayout;
 import java.awt.Image;
 import java.awt.Insets;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.Toolkit;
-import java.awt.GridLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
@@ -19,18 +19,20 @@ import java.awt.event.MouseEvent;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+
 import javax.imageio.ImageIO;
 import javax.swing.BorderFactory;
+import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
-import javax.swing.ImageIcon;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
+
 import tvgameboy.shared.Game;
 
 public final class LauncherApp {
@@ -84,8 +86,19 @@ public final class LauncherApp {
 
         List<GameEntry> games = GameRegistry.getGames();
         for (int i = 0; i < TILE_COUNT; i++) {
-            JButton button = createTileButton(i < games.size() ? games.get(i) : null);
-            tiles.add(button);
+            // Bottom-left position is at row 1 (second row), column 0 (first column) = index 3
+            if (i == 3) {
+                // This is the bottom-left box - place the BTD5 game here
+                GameEntry btd5 = games.stream()
+                    .filter(g -> g.getDisplayName().contains("Balloon") || g.getDisplayName().contains("BTD"))
+                    .findFirst()
+                    .orElse(null);
+                JButton button = createTileButton(btd5);
+                tiles.add(button);
+            } else {
+                JButton button = createTileButton(null);
+                tiles.add(button);
+            }
         }
 
         outer.add(tiles, BorderLayout.CENTER);
