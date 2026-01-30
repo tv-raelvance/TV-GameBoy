@@ -62,7 +62,7 @@ public final class LauncherApp {
 
         menuPanel = buildMenuPanel();
         contentPanel = new JPanel(new BorderLayout());
-        contentPanel.setBackground(new Color(10, 12, 14));
+        contentPanel.setBackground(new Color(5, 5, 5));
 
         JPanel root = new JPanel(new BorderLayout());
         root.add(buildTitleBar(), BorderLayout.NORTH);
@@ -78,11 +78,11 @@ public final class LauncherApp {
     private JPanel buildMenuPanel() {
         JPanel outer = new JPanel(new BorderLayout());
         outer.setBorder(BorderFactory.createEmptyBorder(24, 24, 24, 24));
-        outer.setBackground(new Color(10, 12, 14));
+        outer.setBackground(new Color(5, 5, 5));
 
         JPanel tiles = new JPanel(new GridLayout(TILE_ROWS, TILE_COLUMNS, 16, 16));
         tiles.setBorder(BorderFactory.createEmptyBorder(6, 6, 6, 6));
-        tiles.setBackground(new Color(10, 12, 14));
+        tiles.setBackground(new Color(5, 5, 5));
 
         List<GameEntry> games = GameRegistry.getGames();
         for (int i = 0; i < TILE_COUNT; i++) {
@@ -106,10 +106,10 @@ public final class LauncherApp {
     }
 
     private JButton createTileButton(GameEntry entry) {
-        Color tileBackground = new Color(0, 100, 0);
-        Color tileBorder = new Color(0, 128, 0);
-        Color tileText = new Color(245, 246, 248);
-        Color tileHover = new Color(0, 114, 0);
+        Color tileBackground = new Color(0, 150, 0);
+        Color tileBorder = new Color(100, 255, 100);
+        Color tileText = new Color(255, 255, 255);
+        Color tileHover = new Color(0, 200, 0);
         Font tileFont = new Font("Segoe UI", Font.BOLD, 18);
 
         if (entry == null) {
@@ -117,7 +117,7 @@ public final class LauncherApp {
             button.setFont(tileFont);
             button.setOpaque(true);
             button.setBackground(tileBackground);
-            button.setForeground(new Color(190, 195, 202));
+            button.setForeground(new Color(150, 150, 150));
             button.setBorder(BorderFactory.createCompoundBorder(
                     BorderFactory.createLineBorder(tileBorder),
                     BorderFactory.createEmptyBorder(20, 16, 20, 16)
@@ -183,26 +183,26 @@ public final class LauncherApp {
             return;
         }
 
-        UIManager.put("control", new Color(10, 12, 14));
-        UIManager.put("info", new Color(10, 12, 14));
-        UIManager.put("nimbusBase", new Color(0, 100, 0));
-        UIManager.put("nimbusAlertYellow", new Color(245, 246, 248));
-        UIManager.put("nimbusDisabledText", new Color(112, 160, 84));
-        UIManager.put("nimbusFocus", new Color(56, 176, 0));
-        UIManager.put("nimbusLightBackground", new Color(10, 12, 14));
-        UIManager.put("nimbusSelectionBackground", new Color(0, 128, 0));
-        UIManager.put("nimbusSelectedText", new Color(245, 246, 248));
-        UIManager.put("text", new Color(245, 246, 248));
-        UIManager.put("Panel.background", new Color(10, 12, 14));
-        UIManager.put("Button.background", new Color(0, 100, 0));
-        UIManager.put("Button.foreground", new Color(245, 246, 248));
-        UIManager.put("Label.foreground", new Color(245, 246, 248));
+        UIManager.put("control", new Color(5, 5, 5));
+        UIManager.put("info", new Color(5, 5, 5));
+        UIManager.put("nimbusBase", new Color(0, 150, 0));
+        UIManager.put("nimbusAlertYellow", new Color(255, 255, 255));
+        UIManager.put("nimbusDisabledText", new Color(80, 80, 80));
+        UIManager.put("nimbusFocus", new Color(100, 255, 100));
+        UIManager.put("nimbusLightBackground", new Color(5, 5, 5));
+        UIManager.put("nimbusSelectionBackground", new Color(0, 200, 0));
+        UIManager.put("nimbusSelectedText", new Color(255, 255, 255));
+        UIManager.put("text", new Color(255, 255, 255));
+        UIManager.put("Panel.background", new Color(5, 5, 5));
+        UIManager.put("Button.background", new Color(0, 150, 0));
+        UIManager.put("Button.foreground", new Color(255, 255, 255));
+        UIManager.put("Label.foreground", new Color(255, 255, 255));
     }
 
     private JPanel buildTitleBar() {
-        Color barBackground = new Color(10, 12, 14);
-        Color barBorder = new Color(0, 75, 35);
-        Color titleText = new Color(245, 246, 248);
+        Color barBackground = new Color(5, 5, 5);
+        Color barBorder = new Color(0, 150, 0);
+        Color titleText = new Color(255, 255, 255);
         Font titleFont = new Font("Segoe UI", Font.BOLD, 14);
 
         JPanel titleBar = new JPanel(new BorderLayout());

@@ -1,11 +1,13 @@
 package tvgameboy.games.btd5;
 
+import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+import java.awt.geom.Path2D;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
@@ -29,45 +31,61 @@ public final class BTD5Game implements Game {
 
     @Override
     public JComponent getView(Runnable returnToMenu) {
-        // Create game path
+        // Create game path with loops and curves
         gamePath = new GamePath();
-        gamePath.addPoint(0, 150);
-        gamePath.addPoint(100, 150);
-        gamePath.addPoint(150, 100);
-        gamePath.addPoint(250, 100);
-        gamePath.addPoint(300, 200);
-        gamePath.addPoint(400, 200);
-        gamePath.addPoint(450, 150);
-        gamePath.addPoint(550, 150);
-        gamePath.addPoint(600, 250);
-        gamePath.addPoint(700, 250);
+        // Right side climb
+        gamePath.addPoint(20, 200);
+        gamePath.addPoint(80, 180);
+        gamePath.addPoint(140, 120);
+        gamePath.addPoint(180, 80);
+        // First loop up
+        gamePath.addPoint(220, 60);
+        gamePath.addPoint(260, 50);
+        gamePath.addPoint(300, 60);
+        gamePath.addPoint(320, 100);
+        // Down and across
+        gamePath.addPoint(340, 150);
+        gamePath.addPoint(380, 200);
+        gamePath.addPoint(420, 220);
+        // Second loop down
+        gamePath.addPoint(460, 230);
+        gamePath.addPoint(500, 240);
+        gamePath.addPoint(540, 230);
+        gamePath.addPoint(560, 190);
+        // Final stretch
+        gamePath.addPoint(580, 140);
+        gamePath.addPoint(620, 100);
+        gamePath.addPoint(660, 80);
+        gamePath.addPoint(700, 100);
+        gamePath.addPoint(740, 150);
+        gamePath.addPoint(780, 200);
 
         JPanel mainPanel = new JPanel(new BorderLayout());
-        mainPanel.setBackground(new Color(10, 12, 14));
+        mainPanel.setBackground(new Color(5, 5, 5));
 
         // Top Bar with Info and Buttons
         JPanel topBar = new JPanel(new BorderLayout());
-        topBar.setBackground(new Color(10, 12, 14));
+        topBar.setBackground(new Color(5, 5, 5));
         topBar.setBorder(javax.swing.BorderFactory.createEmptyBorder(12, 12, 12, 12));
 
         JButton menuButton = new JButton("Menu");
         menuButton.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        menuButton.setBackground(new Color(0, 100, 0));
-        menuButton.setForeground(new Color(245, 246, 248));
+        menuButton.setBackground(new Color(0, 150, 0));
+        menuButton.setForeground(new Color(255, 255, 255));
         menuButton.setFocusPainted(false);
         menuButton.addActionListener(event -> returnToMenu.run());
 
         JPanel infoPanel = new JPanel();
-        infoPanel.setBackground(new Color(10, 12, 14));
+        infoPanel.setBackground(new Color(5, 5, 5));
         JLabel infoLabel = new JLabel("Money: $" + money + " | Lives: " + lives + " | Round: " + round);
-        infoLabel.setForeground(new Color(245, 246, 248));
+        infoLabel.setForeground(new Color(255, 255, 255));
         infoLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
         infoPanel.add(infoLabel);
 
         JButton startRoundButton = new JButton("Start Round");
         startRoundButton.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        startRoundButton.setBackground(new Color(100, 0, 0));
-        startRoundButton.setForeground(new Color(245, 246, 248));
+        startRoundButton.setBackground(new Color(200, 0, 0));
+        startRoundButton.setForeground(new Color(255, 255, 255));
         startRoundButton.setFocusPainted(false);
         startRoundButton.addActionListener(event -> {
             if (!roundStarted) {
@@ -151,16 +169,36 @@ public final class BTD5Game implements Game {
             Graphics2D g2d = (Graphics2D) g;
             g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             
-            // Draw path
+            // Draw path with smooth curves
             if (game.gamePath != null && game.gamePath.getPoints().size() > 1) {
                 List<int[]> points = game.gamePath.getPoints();
-                g2d.setColor(new Color(139, 90, 43)); // Brown road color
-                g2d.setStroke(new java.awt.BasicStroke(40));
-                for (int i = 0; i < points.size() - 1; i++) {
+                
+                // Create smooth path using quadratic Bezier curves
+                Path2D path = new Path2D.Double();
+                path.moveTo(points.get(0)[0], points.get(0)[1]);
+                
+                for (int i = 1; i < points.size(); i++) {
+                    int[] p0 = points.get(i - 1);
                     int[] p1 = points.get(i);
-                    int[] p2 = points.get(i + 1);
-                    g2d.drawLine(p1[0], p1[1], p2[0], p2[1]);
+                    
+                    if (i < points.size() - 1) {
+                        int[] p2 = points.get(i + 1);
+                        // Calculate control point for smooth curve
+                        int cpx = p1[0];
+                        int cpy = p1[1];
+                        // Endpoint of quadratic curve (midpoint between current and next)
+                        int endx = (p1[0] + p2[0]) / 2;
+                        int endy = (p1[1] + p2[1]) / 2;
+                        path.quadTo(cpx, cpy, endx, endy);
+                    } else {
+                        // Last point - straight line to end
+                        path.lineTo(p1[0], p1[1]);
+                    }
                 }
+                
+                g2d.setColor(new Color(139, 90, 43)); // Brown road color
+                g2d.setStroke(new BasicStroke(40, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2d.draw(path);
             }
             
             // Draw towers
