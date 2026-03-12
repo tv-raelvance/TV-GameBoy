@@ -31,7 +31,8 @@ public final class BTD5Game implements Game {
     private int lives = 20;
     private int round = 1;
     private boolean roundStarted = false;
-    private boolean autoStartRounds = true;
+    private boolean autoStartRounds = false;
+    private boolean gameFinished = false;
     private GamePath gamePath;
     // UI label to show money/lives/round
     private javax.swing.JLabel infoLabel;
@@ -42,7 +43,8 @@ public final class BTD5Game implements Game {
 
     private enum TowerType {
         NORMAL,
-        NINJA
+        NINJA,
+        MEDIC
     }
 
     private enum BalloonType {
@@ -68,32 +70,54 @@ public final class BTD5Game implements Game {
     // Costs for tower types
     private static final int COST_NORMAL = 1000;
     private static final int COST_NINJA = 1500;
+    private static final int COST_MEDIC = 1800;
 
     private static int getCostFor(TowerType t) {
-        return t == TowerType.NINJA ? COST_NINJA : COST_NORMAL;
+        if (t == TowerType.NINJA) {
+            return COST_NINJA;
+        }
+        if (t == TowerType.MEDIC) {
+            return COST_MEDIC;
+        }
+        return COST_NORMAL;
     }
 
     private static String getDescriptionFor(TowerType t) {
-        return t == TowerType.NINJA ? "Ninja: throws shurikens at nearby balloons (range ~100)" : "Normal: basic monkey that pops balloons up close";
+        if (t == TowerType.NINJA) {
+            return "Ninja: throws shurikens at nearby balloons (range ~100)";
+        }
+        if (t == TowerType.MEDIC) {
+            return "Medic: heals sick monkeys nearby before they die";
+        }
+        return "Normal: basic monkey that pops balloons up close";
     }
 
     // Visual / gameplay constants
     private static final int BALLOON_RADIUS = 14; // slightly smaller balloons
     private static final double BASE_BALLOON_SPEED = 2.6; // pixels per tick along path
-    private static final double SPEED_PER_ROUND = 0.45;
+    private static final double SPEED_PER_ROUND = 0.22;
     private static final int BASE_BALLOONS_PER_ROUND = 8;
-    private static final int BALLOONS_PER_ROUND_INCREASE = 3;
+    private static final int BALLOONS_PER_ROUND_INCREASE = 2;
     private static final int BASE_SPAWN_DELAY_MS = 500;
-    private static final int SPAWN_DELAY_REDUCTION_PER_ROUND_MS = 55;
-    private static final int MIN_SPAWN_DELAY_MS = 80;
+    private static final int SPAWN_DELAY_REDUCTION_PER_ROUND_MS = 24;
+    private static final int MIN_SPAWN_DELAY_MS = 65;
+    private static final int MAX_ROUNDS = 50;
     private static final int SHURIKEN_RADIUS = 4;
     private static final int PEBBLE_RADIUS = 5;
+    private static final int TOWER_SPRITE_SIZE = 34;
     private static final int UPGRADE_RANGE_COST = 800;
     private static final int UPGRADE_SPEED_COST = 900;
     private static final int UPGRADE_DAMAGE_COST = 1000;
     private static final int UPGRADE_RANGE_AMOUNT = 30;
     private static final int MIN_COOLDOWN_NINJA = 8;
     private static final int MIN_COOLDOWN_NORMAL = 12;
+    private static final int MIN_COOLDOWN_MEDIC = 10;
+    private static final int TOWER_MAX_HEALTH = 100;
+    private static final double DISEASE_DAMAGE_PER_TICK = 0.08;
+    private static final double DISEASE_GROWTH_PER_TICK = 0.012;
+    private static final double MEDIC_HEAL_AMOUNT = 0.55;
+    private static final double MEDIC_CURE_AMOUNT = 1.3;
+    private static final int DISEASE_EVENT_INTERVAL = 4;
     private static final float ROAD_DRAW_WIDTH = 44f;
     private static final float ROAD_BLOCK_WIDTH = 34f;
     private static final double PATH_ARROW_SPACING = 195.0;
@@ -163,12 +187,12 @@ public final class BTD5Game implements Game {
         startRoundButton.setFocusPainted(false);
         startRoundButton.addActionListener(event -> startRound(startRoundButton));
 
-        JToggleButton autoRoundButton = new JToggleButton("Auto Rounds: ON");
+        JToggleButton autoRoundButton = new JToggleButton("Auto Rounds: OFF");
         autoRoundButton.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        autoRoundButton.setBackground(new Color(0, 120, 180));
+        autoRoundButton.setBackground(new Color(55, 55, 55));
         autoRoundButton.setForeground(new Color(255, 255, 255));
         autoRoundButton.setFocusPainted(false);
-        autoRoundButton.setSelected(true);
+        autoRoundButton.setSelected(false);
         autoRoundButton.addActionListener(event -> {
             autoStartRounds = autoRoundButton.isSelected();
             autoRoundButton.setText(autoStartRounds ? "Auto Rounds: ON" : "Auto Rounds: OFF");
@@ -196,21 +220,33 @@ public final class BTD5Game implements Game {
         selectPanel.setPreferredSize(new java.awt.Dimension(120, 0));
         JButton normalButton = new JButton("Normal\n($" + COST_NORMAL + ")");
         JButton ninjaButton = new JButton("Ninja\n($" + COST_NINJA + ")");
+        JButton medicButton = new JButton("Medic\n($" + COST_MEDIC + ")");
         normalButton.setToolTipText(getDescriptionFor(TowerType.NORMAL));
         ninjaButton.setToolTipText(getDescriptionFor(TowerType.NINJA));
+        medicButton.setToolTipText(getDescriptionFor(TowerType.MEDIC));
         normalButton.setFocusPainted(false);
         ninjaButton.setFocusPainted(false);
+        medicButton.setFocusPainted(false);
         normalButton.setPreferredSize(new java.awt.Dimension(100, 28));
         ninjaButton.setPreferredSize(new java.awt.Dimension(100, 28));
+        medicButton.setPreferredSize(new java.awt.Dimension(100, 28));
         normalButton.addActionListener(e -> {
             selectedTowerType = TowerType.NORMAL;
             normalButton.setBackground(new Color(0, 150, 150));
             ninjaButton.setBackground(null);
+            medicButton.setBackground(null);
         });
         ninjaButton.addActionListener(e -> {
             selectedTowerType = TowerType.NINJA;
             ninjaButton.setBackground(new Color(0, 150, 150));
             normalButton.setBackground(null);
+            medicButton.setBackground(null);
+        });
+        medicButton.addActionListener(e -> {
+            selectedTowerType = TowerType.MEDIC;
+            medicButton.setBackground(new Color(0, 150, 150));
+            normalButton.setBackground(null);
+            ninjaButton.setBackground(null);
         });
         normalButton.setBackground(new Color(0, 150, 150)); // default selected
         selectPanel.add(new JLabel("Select Monkey:"));
@@ -233,14 +269,23 @@ public final class BTD5Game implements Game {
                 javax.swing.BorderFactory.createLineBorder(new Color(100,100,100)),
                 javax.swing.BorderFactory.createEmptyBorder(6, 8, 6, 8)
         ));
+        medicButton.setOpaque(true);
+        medicButton.setBackground(new Color(40, 40, 40));
+        medicButton.setForeground(new Color(255,255,255));
+        medicButton.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        medicButton.setMargin(new java.awt.Insets(8, 12, 8, 12));
+        medicButton.setBorder(javax.swing.BorderFactory.createCompoundBorder(
+                javax.swing.BorderFactory.createLineBorder(new Color(100,100,100)),
+                javax.swing.BorderFactory.createEmptyBorder(6, 8, 6, 8)
+        ));
 
         selectPanel.add(normalButton);
         selectPanel.add(ninjaButton);
+        selectPanel.add(medicButton);
 
         mainPanel.add(topBar, BorderLayout.NORTH);
         mainPanel.add(selectPanel, BorderLayout.WEST);
         mainPanel.add(gameCanvas, BorderLayout.CENTER);
-        SwingUtilities.invokeLater(() -> startRound(startRoundButton));
         return mainPanel;
     }
 
@@ -273,8 +318,36 @@ public final class BTD5Game implements Game {
         this.money = amount;
     }
 
+    private void triggerDiseaseEvent(int roundNumber) {
+        if (roundNumber < DISEASE_EVENT_INTERVAL || roundNumber % DISEASE_EVENT_INTERVAL != 0) {
+            return;
+        }
+        List<Tower> vulnerable = new ArrayList<>();
+        for (Tower tower : towers) {
+            if (!tower.isDead()) {
+                vulnerable.add(tower);
+            }
+        }
+        if (vulnerable.isEmpty()) {
+            return;
+        }
+        vulnerable.sort((a, b) -> Double.compare(a.sickness, b.sickness));
+        int infectCount = Math.min(vulnerable.size(), Math.max(1, 1 + roundNumber / 10));
+        for (int i = 0; i < infectCount; i++) {
+            Tower tower = vulnerable.get(i);
+            tower.sickness = Math.min(100.0, Math.max(tower.sickness, 18 + roundNumber * 1.7));
+            tower.health = Math.max(18.0, tower.health - 6.0);
+        }
+        if (infoLabel != null) {
+            infoLabel.setText("Money: $" + money + " | Lives: " + lives + " | Round: " + roundNumber + " | Monkey disease hit " + infectCount + " monkeys");
+        }
+    }
+
     private void startRound(JButton startRoundButton) {
-        if (roundStarted || lives <= 0) {
+        if (roundStarted || lives <= 0 || gameFinished || round > MAX_ROUNDS) {
+            if (round > MAX_ROUNDS && infoLabel != null) {
+                infoLabel.setText("Money: $" + money + " | Lives: " + lives + " | Victory after " + MAX_ROUNDS + " rounds");
+            }
             return;
         }
         roundStarted = true;
@@ -286,6 +359,7 @@ public final class BTD5Game implements Game {
         new Thread(() -> {
             try {
                 int roundNumber = round;
+                triggerDiseaseEvent(roundNumber);
                 int balloonsToSpawn = getBalloonCountForRound(roundNumber);
                 int batchSize = getSpawnBatchSizeForRound(roundNumber);
                 int spawnDelayMs = getSpawnDelayForRound(roundNumber);
@@ -330,14 +404,28 @@ public final class BTD5Game implements Game {
                 }
 
                 roundStarted = false;
-                round++;
                 money += 500;
+                boolean wonGame = roundNumber >= MAX_ROUNDS;
+                if (wonGame) {
+                    gameFinished = true;
+                } else {
+                    round++;
+                }
                 SwingUtilities.invokeLater(() -> {
-                    startRoundButton.setEnabled(true);
                     if (infoLabel != null) {
-                        infoLabel.setText("Money: $" + money + " | Lives: " + lives + " | Round: " + round);
+                        if (lives <= 0) {
+                            infoLabel.setText("Money: $" + money + " | Lives: 0 | Game Over on Round " + roundNumber);
+                        } else if (wonGame) {
+                            infoLabel.setText("Money: $" + money + " | Lives: " + lives + " | Victory after " + MAX_ROUNDS + " rounds");
+                        } else {
+                            infoLabel.setText("Money: $" + money + " | Lives: " + lives + " | Round: " + round);
+                        }
                     }
-                    if (autoStartRounds && lives > 0) {
+                    startRoundButton.setEnabled(lives > 0 && !gameFinished && round <= MAX_ROUNDS);
+                    if (wonGame) {
+                        startRoundButton.setText("All 50 Rounds Cleared");
+                    }
+                    if (autoStartRounds && lives > 0 && !gameFinished && round <= MAX_ROUNDS) {
                         startRound(startRoundButton);
                     }
                 });
@@ -358,6 +446,7 @@ public final class BTD5Game implements Game {
         private java.awt.image.BufferedImage limeBalloonSprite;
         private java.awt.image.BufferedImage normalSprite;
         private java.awt.image.BufferedImage ninjaSprite;
+        private java.awt.image.BufferedImage medicSprite;
 
         // viewport transform (world -> screen)
         private double viewScale = 1.0;
@@ -488,18 +577,19 @@ public final class BTD5Game implements Game {
                 // ignore - fallback to generated sprite
             }
             if (loadedNormal != null) {
-                normalSprite = new java.awt.image.BufferedImage(30, 30, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+                normalSprite = new java.awt.image.BufferedImage(TOWER_SPRITE_SIZE, TOWER_SPRITE_SIZE, java.awt.image.BufferedImage.TYPE_INT_ARGB);
                 java.awt.Graphics2D g2 = normalSprite.createGraphics();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.drawImage(loadedNormal, 0, 0, 30, 30, null);
+                g2.drawImage(loadedNormal, 0, 0, TOWER_SPRITE_SIZE, TOWER_SPRITE_SIZE, null);
                 g2.dispose();
             } else {
-                normalSprite = createSprite(TowerType.NORMAL, 30);
+                normalSprite = createSprite(TowerType.NORMAL, TOWER_SPRITE_SIZE);
             }
             starterBalloonSprite = createBalloonSprite(BALLOON_RADIUS * 3, BALLOON_RADIUS * 4, BalloonType.STARTER);
             skyBalloonSprite = createBalloonSprite(BALLOON_RADIUS * 3, BALLOON_RADIUS * 4, BalloonType.SKY);
             limeBalloonSprite = createBalloonSprite(BALLOON_RADIUS * 3, BALLOON_RADIUS * 4, BalloonType.LIME);
-            ninjaSprite = createSprite(TowerType.NINJA, 30);
+            ninjaSprite = createSprite(TowerType.NINJA, TOWER_SPRITE_SIZE);
+            medicSprite = createSprite(TowerType.MEDIC, TOWER_SPRITE_SIZE);
 
             timer = new javax.swing.Timer(40, ev -> {
                 updateGame();
@@ -511,6 +601,16 @@ public final class BTD5Game implements Game {
         private void updateGame() {
             List<int[]> points = game.getPath().getPoints();
             if (points.size() < 2) return;
+            for (Tower tower : new ArrayList<>(game.getTowers())) {
+                if (tower.sickness > 0) {
+                    tower.sickness = Math.min(100.0, tower.sickness + DISEASE_GROWTH_PER_TICK);
+                    tower.health = Math.max(0.0, tower.health - DISEASE_DAMAGE_PER_TICK * (1.0 + tower.sickness / 45.0));
+                } else if (tower.health < tower.maxHealth) {
+                    tower.health = Math.min(tower.maxHealth, tower.health + 0.03);
+                }
+            }
+            game.getTowers().removeIf(Tower::isDead);
+
             double[] segLen = new double[points.size() - 1];
             double[] cumLen = new double[points.size()];
             for (int i = 0; i < points.size() - 1; i++) {
@@ -576,24 +676,47 @@ public final class BTD5Game implements Game {
                 if (t.cooldown > 0) {
                     t.cooldown--;
                 } else {
-                    Balloon nearest = null;
-                    double bestDist = Double.MAX_VALUE;
-                    for (Balloon b : game.getBalloons()) {
-                        double dx = t.getX() - b.getX();
-                        double dy = t.getY() - b.getY();
-                        double dist = Math.hypot(dx, dy);
-                        if (dist < t.range && dist < bestDist) {
-                            bestDist = dist;
-                            nearest = b;
+                    if (t.type == TowerType.MEDIC) {
+                        Tower sickest = null;
+                        double highestSickness = 0.0;
+                        for (Tower other : game.getTowers()) {
+                            if (other == t || other.isDead()) {
+                                continue;
+                            }
+                            double dx = t.getX() - other.getX();
+                            double dy = t.getY() - other.getY();
+                            double dist = Math.hypot(dx, dy);
+                            if (dist < t.range && other.sickness > highestSickness) {
+                                highestSickness = other.sickness;
+                                sickest = other;
+                            }
                         }
-                    }
-                    if (nearest != null) {
-                        if (t.type == TowerType.NINJA) {
-                            shurikens.add(new Shuriken(t.getX(), t.getY(), nearest, t.damage));
+                        if (sickest != null) {
+                            sickest.sickness = Math.max(0.0, sickest.sickness - MEDIC_CURE_AMOUNT);
+                            sickest.health = Math.min(sickest.maxHealth, sickest.health + MEDIC_HEAL_AMOUNT);
                             t.cooldown = t.baseCooldown;
-                        } else { // NORMAL
-                            pebbles.add(new Pebble(t.getX(), t.getY(), nearest, t.damage));
-                            t.cooldown = t.baseCooldown;
+                            effects.add(new Particle(sickest.getX(), sickest.getY() - 8, 0.0, -0.4, 10, new Color(90, 220, 150, 190), 10));
+                        }
+                    } else {
+                        Balloon nearest = null;
+                        double bestDist = Double.MAX_VALUE;
+                        for (Balloon b : game.getBalloons()) {
+                            double dx = t.getX() - b.getX();
+                            double dy = t.getY() - b.getY();
+                            double dist = Math.hypot(dx, dy);
+                            if (dist < t.range && dist < bestDist) {
+                                bestDist = dist;
+                                nearest = b;
+                            }
+                        }
+                        if (nearest != null) {
+                            if (t.type == TowerType.NINJA) {
+                                shurikens.add(new Shuriken(t.getX(), t.getY(), nearest, t.damage));
+                                t.cooldown = t.baseCooldown;
+                            } else { // NORMAL
+                                pebbles.add(new Pebble(t.getX(), t.getY(), nearest, t.damage));
+                                t.cooldown = t.baseCooldown;
+                            }
                         }
                     }
                 }
@@ -757,10 +880,17 @@ public final class BTD5Game implements Game {
             g2d.translate(viewOffsetX, viewOffsetY);
             g2d.scale(viewScale, viewScale);
             for (Tower tower : game.getTowers()) {
-                java.awt.image.BufferedImage sprite = tower.type == TowerType.NINJA ? ninjaSprite : normalSprite;
+                java.awt.image.BufferedImage sprite = getTowerSprite(tower.type);
                 int w = sprite.getWidth();
                 int h = sprite.getHeight();
                 g2d.drawImage(sprite, tower.getX() - w/2, tower.getY() - h/2, null);
+
+                if (tower.sickness > 0) {
+                    g2d.setColor(new Color(115, 220, 120, 180));
+                    g2d.fillOval(tower.getX() - 7, tower.getY() - h / 2 - 6, 14, 14);
+                    g2d.setColor(new Color(235, 255, 235, 220));
+                    g2d.fillOval(tower.getX() - 3, tower.getY() - h / 2 - 2, 6, 6);
+                }
 
                 // If selected, draw range circle
                 if (tower.selected) {
@@ -795,9 +925,10 @@ public final class BTD5Game implements Game {
 
             // Draw effects (explosion particles) in world space
             for (Particle effect : effects) {
-                int alpha = Math.max(30, effect.ttl * 20);
-                g2d.setColor(new Color(255, 200, 100, alpha));
-                g2d.fillOval((int)effect.x - 4, (int)effect.y - 4, 8, 8);
+                int alpha = Math.max(30, Math.min(255, effect.ttl * 20));
+                Color base = effect.color;
+                g2d.setColor(new Color(base.getRed(), base.getGreen(), base.getBlue(), Math.min(alpha, base.getAlpha())));
+                g2d.fillOval((int)effect.x - effect.size / 2, (int)effect.y - effect.size / 2, effect.size, effect.size);
             }
             g2d.setTransform(old2);
 
@@ -834,9 +965,45 @@ public final class BTD5Game implements Game {
                     g.fillRect(dmgX, dmgY, 80, 24);
                     g.setColor(new Color(255, 255, 255));
                     g.drawString(tower.damageUpgraded ? "Dmg (MAX)" : "Dmg ($" + UPGRADE_DAMAGE_COST + ")", dmgX + 6, dmgY + 16);
+
+                    int panelX = btnX - 10;
+                    int panelY = btnY + 124;
+                    int panelW = 120;
+                    int barW = 104;
+                    g.setColor(new Color(25, 28, 34, 220));
+                    g.fillRoundRect(panelX, panelY, panelW, 62, 12, 12);
+                    g.setColor(new Color(220, 220, 220));
+                    g.drawString("Health", panelX + 8, panelY + 14);
+                    g.drawString("Sick", panelX + 8, panelY + 40);
+                    drawStatusBar(g, panelX + 8, panelY + 18, barW, 10,
+                            (float) (tower.health / tower.maxHealth), new Color(210, 70, 70), new Color(80, 25, 25));
+                    drawStatusBar(g, panelX + 8, panelY + 44, barW, 10,
+                            (float) (tower.sickness / 100.0), new Color(110, 220, 120), new Color(32, 72, 36));
+                    g.drawString((int) Math.round(tower.health) + "/" + (int) tower.maxHealth, panelX + 8, panelY + 61);
+                    g.drawString((int) Math.round(tower.sickness) + "%", panelX + 72, panelY + 61);
                     break;
                 }
             }
+        }
+
+        private java.awt.image.BufferedImage getTowerSprite(TowerType type) {
+            if (type == TowerType.NINJA) {
+                return ninjaSprite;
+            }
+            if (type == TowerType.MEDIC) {
+                return medicSprite;
+            }
+            return normalSprite;
+        }
+
+        private void drawStatusBar(Graphics g, int x, int y, int width, int height, float progress, Color fill, Color bg) {
+            progress = Math.max(0f, Math.min(1f, progress));
+            g.setColor(bg);
+            g.fillRoundRect(x, y, width, height, 8, 8);
+            g.setColor(fill);
+            g.fillRoundRect(x, y, Math.max(0, Math.round(width * progress)), height, 8, 8);
+            g.setColor(new Color(230, 230, 230));
+            g.drawRoundRect(x, y, width, height, 8, 8);
         }
 
         private java.awt.image.BufferedImage getBalloonSprite(BalloonType type) {
@@ -852,13 +1019,21 @@ public final class BTD5Game implements Game {
         private static class Particle {
             double x, y, vx, vy;
             int ttl;
+            Color color;
+            int size;
 
             Particle(double x, double y, double vx, double vy, int ttl) {
+                this(x, y, vx, vy, ttl, new Color(255, 200, 100, 190), 8);
+            }
+
+            Particle(double x, double y, double vx, double vy, int ttl, Color color, int size) {
                 this.x = x;
                 this.y = y;
                 this.vx = vx;
                 this.vy = vy;
                 this.ttl = ttl;
+                this.color = color;
+                this.size = size;
             }
 
             void update() {
@@ -1021,13 +1196,16 @@ public final class BTD5Game implements Game {
         private boolean selected = false;
         // range in pixels
         private int range;
+        private double maxHealth = TOWER_MAX_HEALTH;
+        private double health = TOWER_MAX_HEALTH;
+        private double sickness = 0.0;
 
         Tower(int x, int y, TowerType type) {
             this.x = x;
             this.y = y;
             this.type = type;
-            this.range = (type == TowerType.NINJA) ? 120 : 80;
-            this.baseCooldown = (type == TowerType.NINJA) ? 14 : 20;
+            this.range = type == TowerType.NINJA ? 120 : type == TowerType.MEDIC ? 115 : 80;
+            this.baseCooldown = type == TowerType.NINJA ? 14 : type == TowerType.MEDIC ? 16 : 20;
         }
 
         public int getX() {
@@ -1039,16 +1217,32 @@ public final class BTD5Game implements Game {
         }
 
         public int getMinCooldown() {
-            return (type == TowerType.NINJA) ? MIN_COOLDOWN_NINJA : MIN_COOLDOWN_NORMAL;
+            if (type == TowerType.NINJA) {
+                return MIN_COOLDOWN_NINJA;
+            }
+            if (type == TowerType.MEDIC) {
+                return MIN_COOLDOWN_MEDIC;
+            }
+            return MIN_COOLDOWN_NORMAL;
+        }
+
+        public boolean isDead() {
+            return health <= 0.0;
         }
     }
 
     private static double getBalloonSpeedForRound(int round) {
-        return BASE_BALLOON_SPEED + Math.max(0, round - 1) * SPEED_PER_ROUND;
+        int roundOffset = Math.max(0, round - 1);
+        double speed = BASE_BALLOON_SPEED + roundOffset * SPEED_PER_ROUND;
+        speed += (roundOffset / 10) * 0.35;
+        return speed;
     }
 
     private static int getBalloonCountForRound(int round) {
-        return BASE_BALLOONS_PER_ROUND + Math.max(0, round - 1) * BALLOONS_PER_ROUND_INCREASE;
+        int roundOffset = Math.max(0, round - 1);
+        return BASE_BALLOONS_PER_ROUND
+                + roundOffset * BALLOONS_PER_ROUND_INCREASE
+                + (roundOffset * roundOffset) / 12;
     }
 
     private static int getSpawnDelayForRound(int round) {
@@ -1057,7 +1251,7 @@ public final class BTD5Game implements Game {
     }
 
     private static int getSpawnBatchSizeForRound(int round) {
-        return Math.min(7, 2 + Math.max(0, round - 1) / 2);
+        return Math.min(10, 2 + Math.max(0, round - 1) / 4);
     }
 
     private static double getBalloonSpacingForRound(int round) {
@@ -1070,28 +1264,128 @@ public final class BTD5Game implements Game {
         return Math.max(BALLOON_RADIUS * 1.25, spacing);
     }
 
-    // Helper to create simple programmatic sprites
+    // Helper to create programmatic monkey sprites for each tower type
     private static java.awt.image.BufferedImage createSprite(TowerType type, int size) {
         java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(size, size, java.awt.image.BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = img.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setStroke(new BasicStroke(Math.max(1.5f, size * 0.05f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+
+        int centerX = size / 2;
+        int centerY = size / 2 + 1;
+        int bodyWidth = Math.max(16, (int) Math.round(size * 0.56));
+        int bodyHeight = Math.max(14, (int) Math.round(size * 0.42));
+        int bodyX = centerX - bodyWidth / 2;
+        int bodyY = centerY + size / 8;
+        int headSize = Math.max(18, (int) Math.round(size * 0.56));
+        int headX = centerX - headSize / 2;
+        int headY = centerY - headSize / 2 - size / 6;
+        int earSize = Math.max(6, (int) Math.round(size * 0.18));
+
         if (type == TowerType.NORMAL) {
-            g.setColor(new Color(200, 150, 0));
-            g.fillOval(2, 2, size-4, size-4);
-            g.setColor(new Color(255, 200, 0));
-            g.fillOval(size/4, size/4, size/2, size/2);
-            g.setColor(new Color(120, 80, 0));
-            g.drawString("M", size/2 - 4, size/2 + 4);
+            Color fur = new Color(124, 80, 42);
+            Color furShadow = new Color(86, 54, 30);
+            Color face = new Color(227, 193, 152);
+            Color accent = new Color(184, 64, 36);
+
+            g.setColor(new Color(0, 0, 0, 35));
+            g.fillOval(bodyX + 2, bodyY + bodyHeight - 2, bodyWidth - 4, Math.max(5, size / 7));
+
+            g.setColor(furShadow);
+            g.fillOval(headX - earSize / 2, headY + earSize / 2, earSize, earSize);
+            g.fillOval(headX + headSize - earSize / 2, headY + earSize / 2, earSize, earSize);
+            g.fillRoundRect(bodyX, bodyY, bodyWidth, bodyHeight, bodyWidth / 2, bodyHeight / 2);
+
+            g.setPaint(new GradientPaint(headX, headY, new Color(148, 96, 54), headX, headY + headSize, fur));
+            g.fillOval(headX, headY, headSize, headSize);
+
+            int faceWidth = Math.max(12, (int) Math.round(headSize * 0.62));
+            int faceHeight = Math.max(10, (int) Math.round(headSize * 0.48));
+            int faceX = centerX - faceWidth / 2;
+            int faceY = headY + headSize / 2 - faceHeight / 4;
+            g.setColor(face);
+            g.fillOval(faceX, faceY, faceWidth, faceHeight);
+
+            g.setColor(new Color(54, 33, 21));
+            int eyeY = headY + headSize / 2 - 2;
+            g.fillOval(centerX - 7, eyeY, 3, 4);
+            g.fillOval(centerX + 4, eyeY, 3, 4);
+            g.drawArc(centerX - 4, faceY + faceHeight / 2 - 1, 8, 5, 200, 140);
+
+            g.setColor(accent);
+            int dartX = bodyX + bodyWidth - 3;
+            int dartY = bodyY + bodyHeight / 2 - 1;
+            g.drawLine(bodyX + 4, bodyY + bodyHeight / 2 + 2, dartX, dartY);
+            Polygon dartHead = new Polygon();
+            dartHead.addPoint(dartX, dartY);
+            dartHead.addPoint(dartX - 5, dartY - 3);
+            dartHead.addPoint(dartX - 5, dartY + 3);
+            g.fillPolygon(dartHead);
+        } else if (type == TowerType.NINJA) {
+            Color robe = new Color(42, 45, 58);
+            Color robeShadow = new Color(21, 23, 31);
+            Color hood = new Color(58, 62, 78);
+            Color faceBand = new Color(213, 189, 162);
+            Color headband = new Color(170, 38, 38);
+
+            g.setColor(new Color(0, 0, 0, 45));
+            g.fillOval(bodyX + 1, bodyY + bodyHeight - 1, bodyWidth - 2, Math.max(5, size / 7));
+
+            g.setColor(robeShadow);
+            g.fillRoundRect(bodyX, bodyY, bodyWidth, bodyHeight, bodyWidth / 2, bodyHeight / 2);
+            g.setPaint(new GradientPaint(headX, headY, hood, headX, headY + headSize, robe));
+            g.fillOval(headX, headY, headSize, headSize);
+
+            int bandY = headY + headSize / 3;
+            g.setColor(headband);
+            g.fillRoundRect(headX + 2, bandY, headSize - 4, Math.max(4, size / 8), 5, 5);
+            g.fillRect(headX + headSize - 3, bandY + 1, Math.max(3, size / 10), Math.max(7, size / 6));
+
+            int visorWidth = Math.max(12, (int) Math.round(headSize * 0.58));
+            int visorHeight = Math.max(7, (int) Math.round(headSize * 0.22));
+            int visorX = centerX - visorWidth / 2;
+            int visorY = headY + headSize / 2 - visorHeight / 2;
+            g.setColor(faceBand);
+            g.fillRoundRect(visorX, visorY, visorWidth, visorHeight, visorHeight, visorHeight);
+
+            g.setColor(new Color(236, 239, 245));
+            g.fillOval(centerX - 7, visorY + 1, 4, 3);
+            g.fillOval(centerX + 3, visorY + 1, 4, 3);
+
+            g.setColor(new Color(180, 184, 196));
+            int bladeCenterX = bodyX + bodyWidth - 1;
+            int bladeCenterY = bodyY + bodyHeight / 2 + 1;
+            g.drawLine(bodyX + 4, bodyY + bodyHeight - 3, bladeCenterX, bladeCenterY);
+            g.drawLine(bladeCenterX - 2, bladeCenterY - 5, bladeCenterX + 2, bladeCenterY + 5);
+            g.drawLine(bladeCenterX - 5, bladeCenterY - 2, bladeCenterX + 5, bladeCenterY + 2);
         } else {
-            // ninja
-            g.setColor(new Color(60, 60, 80));
-            g.fillOval(2, 2, size-4, size-4);
-            g.setColor(new Color(20, 20, 20));
-            int eyeSize = 4;
-            g.fillRect(size/2 - 6, size/2 - 2, eyeSize, eyeSize);
-            g.fillRect(size/2 + 2, size/2 - 2, eyeSize, eyeSize);
-            g.setColor(new Color(200, 200, 200));
-            g.drawString("N", size/2 - 4, size/2 + 8);
+            Color coat = new Color(236, 244, 252);
+            Color coatShadow = new Color(189, 205, 220);
+            Color fur = new Color(146, 97, 54);
+            Color face = new Color(230, 199, 165);
+            Color cross = new Color(208, 74, 74);
+
+            g.setColor(new Color(0, 0, 0, 35));
+            g.fillOval(bodyX + 2, bodyY + bodyHeight - 2, bodyWidth - 4, Math.max(5, size / 7));
+            g.setColor(fur);
+            g.fillOval(headX - earSize / 2, headY + earSize / 2, earSize, earSize);
+            g.fillOval(headX + headSize - earSize / 2, headY + earSize / 2, earSize, earSize);
+            g.setPaint(new GradientPaint(bodyX, bodyY, coat, bodyX, bodyY + bodyHeight, coatShadow));
+            g.fillRoundRect(bodyX, bodyY, bodyWidth, bodyHeight, bodyWidth / 2, bodyHeight / 2);
+            g.setPaint(new GradientPaint(headX, headY, new Color(166, 110, 62), headX, headY + headSize, fur));
+            g.fillOval(headX, headY, headSize, headSize);
+            g.setColor(face);
+            g.fillOval(centerX - headSize / 4, headY + headSize / 2 - 1, headSize / 2, headSize / 3);
+            g.setColor(new Color(66, 40, 24));
+            g.fillOval(centerX - 7, headY + headSize / 2 - 2, 3, 4);
+            g.fillOval(centerX + 4, headY + headSize / 2 - 2, 3, 4);
+            g.setColor(coat);
+            g.fillRect(centerX - 6, bodyY + 3, 12, 12);
+            g.setColor(cross);
+            g.fillRect(centerX - 1, bodyY + 5, 2, 8);
+            g.fillRect(centerX - 4, bodyY + 8, 8, 2);
+            g.setColor(new Color(99, 180, 205));
+            g.drawRoundRect(bodyX + 2, bodyY + 2, bodyWidth - 4, bodyHeight - 4, 8, 8);
         }
         g.dispose();
         return img;
@@ -1273,6 +1567,30 @@ public final class BTD5Game implements Game {
 
     private static BalloonType getBalloonTypeForSpawn(int round, int spawned, int totalToSpawn) {
         double progress = totalToSpawn <= 1 ? 1.0 : (double) spawned / (double) (totalToSpawn - 1);
+        if (round >= 35) {
+            if (progress > 0.50 || spawned % 2 == 1) {
+                return BalloonType.LIME;
+            }
+            if (progress > 0.18 || spawned % 3 == 2) {
+                return BalloonType.SKY;
+            }
+        }
+        if (round >= 20) {
+            if (progress > 0.62 || spawned % 3 == 2) {
+                return BalloonType.LIME;
+            }
+            if (progress > 0.28 || spawned % 4 == 3) {
+                return BalloonType.SKY;
+            }
+        }
+        if (round >= 10) {
+            if (progress > 0.68 || spawned % 4 == 3) {
+                return BalloonType.LIME;
+            }
+            if (progress > 0.32 || spawned % 3 == 2) {
+                return BalloonType.SKY;
+            }
+        }
         if (round >= 5) {
             if (progress > 0.72 || spawned % 6 == 5) {
                 return BalloonType.LIME;
